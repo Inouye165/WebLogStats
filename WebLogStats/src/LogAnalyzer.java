@@ -1,12 +1,16 @@
-import java.util.*;
+// FILE: LogAnalyzer.java
+
+import java.util.*; // Includes ArrayList, HashSet, Date, List
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.nio.charset.StandardCharsets;
+import java.util.Date; // Explicit import for clarity
+import java.text.SimpleDateFormat; // Needed for the corrected method
+import java.util.Locale;         // Needed by SimpleDateFormat
 
 public class LogAnalyzer {
     private ArrayList<LogEntry> records;
-    // Add fields to track min and max dates
     private Date minDate = null;
     private Date maxDate = null;
 
@@ -14,84 +18,37 @@ public class LogAnalyzer {
         records = new ArrayList<LogEntry>();
     }
 
-    /**
-     * Reads log entries from a file using WebLogParser. Clears previous records
-     * and finds the minimum and maximum dates in the file.
-     * @param filename The name of the log file to read.
-     */
-    public void readFile(String filename) {
-        records.clear(); // Clear previous records
-        minDate = null;  // Reset min/max dates
+    public void readFile(String filename) throws IOException {
+        records.clear();
+        minDate = null;
         maxDate = null;
-
-        try {
-            List<String> lines = Files.readAllLines(Paths.get(filename), StandardCharsets.UTF_8);
-            for (String line : lines) {
-                try {
-                     if (line == null || line.trim().isEmpty()) continue;
-
-                     LogEntry entry = WebLogParser.parseEntry(line);
-                     records.add(entry);
-
-                     // Track min and max dates
-                     Date currentDate = entry.getAccessTime();
-                     if (currentDate != null) {
-                         if (minDate == null || currentDate.before(minDate)) {
-                             minDate = currentDate;
-                         }
-                         if (maxDate == null || currentDate.after(maxDate)) {
-                             maxDate = currentDate;
-                         }
-                     }
-                } catch (Exception e) {
-                    System.err.println("Error parsing line: '" + line + "' - " + e.getMessage());
-                }
+        List<String> lines = Files.readAllLines(Paths.get(filename), StandardCharsets.UTF_8);
+        for (String line : lines) {
+            try {
+                 if (line == null || line.trim().isEmpty()) continue;
+                 LogEntry entry = WebLogParser.parseEntry(line);
+                 records.add(entry);
+                 Date currentDate = entry.getAccessTime();
+                 if (currentDate != null) {
+                     if (minDate == null || currentDate.before(minDate)) minDate = currentDate;
+                     if (maxDate == null || currentDate.after(maxDate)) maxDate = currentDate;
+                 }
+            } catch (Exception e) {
+                System.err.println("Error parsing line: '" + line + "' - " + e.getMessage());
             }
-            System.out.println("Successfully read " + records.size() + " records from " + filename);
-            if (minDate != null && maxDate != null) {
-                 System.out.println("Log date range: " + minDate + " to " + maxDate);
-            }
-
-        } catch (IOException e) {
-            System.err.println("Error reading file: " + filename + " - " + e.getMessage());
-        } catch (Exception e) {
-             System.err.println("An unexpected error occurred during file processing: " + e.getMessage());
-             e.printStackTrace();
         }
+        System.out.println("Successfully read " + records.size() + " records from " + filename);
+        if (minDate != null && maxDate != null) System.out.println("Log date range: " + minDate + " to " + maxDate);
     }
 
-    // --- Getters for min/max dates ---
-    public Date getMinDate() {
-        return minDate;
-    }
+    public Date getMinDate() { return minDate; }
+    public Date getMaxDate() { return maxDate; }
 
-    public Date getMaxDate() {
-        return maxDate;
-    }
+    public int countUniqueIPs() { HashSet<String> u=new HashSet<>(); for(LogEntry le:records) if(le.getIpAddress()!=null) u.add(le.getIpAddress()); return u.size(); }
+    public String getAllHigherThanNum(int n) { StringBuilder s=new StringBuilder(); s.append("--- Log entries with status code > ").append(n).append(" ---\n"); int c=0; for(LogEntry le:records) if(le.getStatusCode()>n){ s.append(le).append("\n"); c++; } if(c==0)s.append("None found.\n"); s.append("--- End Status Code > ").append(n).append(" ---"); return s.toString(); }
+    public ArrayList<String> uniqueIPsInRange(int l, int h) { HashSet<String> u=new HashSet<>(); for(LogEntry le:records) {int s=le.getStatusCode(); if(s>=l&&s<=h&&le.getIpAddress()!=null) u.add(le.getIpAddress());} return new ArrayList<>(u); }
+    public int countUniqueIPsInRange(int l, int h) { return uniqueIPsInRange(l, h).size(); }
+    public ArrayList<String> uniqueIPVisitsOnDay(String someday) { HashSet<String> u=new HashSet<>(); SimpleDateFormat f=new SimpleDateFormat("MMM dd",Locale.US); for(LogEntry le:records){ Date d=le.getAccessTime(); if(d==null)continue; try{String fd=f.format(d); if(fd.equals(someday)&&le.getIpAddress()!=null) u.add(le.getIpAddress());}catch(Exception e){System.err.println("Err fmt date:"+d+e.getMessage());}} return new ArrayList<>(u); }
+    public void printAll() { System.out.println("\n--- All Log Entries ---"); if(records.isEmpty())System.out.println("(No records loaded)"); else for(LogEntry le:records)System.out.println(le); System.out.println("--- End All Log Entries ---"); }
 
-    // --- Other existing methods ---
-    public int countUniqueIPs() { /* ... no change ... */
-        HashSet<String> uniqueIPs = new HashSet<>();
-        for (LogEntry le : records) { uniqueIPs.add(le.getIpAddress()); }
-        return uniqueIPs.size();
-    }
-    public void printAllHigherThanNum(int num) { /* ... no change ... */
-        System.out.println("\n--- Log entries with status code > " + num + " ---");
-        int count = 0;
-        for (LogEntry le : records) { if (le.getStatusCode() > num) { System.out.println(le); count++; } }
-        if (count == 0) System.out.println("None found.");
-        System.out.println("--- End Status Code > " + num + " ---");
-    }
-    public ArrayList<String> uniqueIPsInRange(int low, int high) { /* ... no change ... */
-        HashSet<String> uniqueIPs = new HashSet<>();
-        for (LogEntry le : records) { int status = le.getStatusCode(); if (status >= low && status <= high) uniqueIPs.add(le.getIpAddress()); }
-        return new ArrayList<>(uniqueIPs);
-    }
-    public int countUniqueIPsInRange(int low, int high) { /* ... no change ... */ return uniqueIPsInRange(low, high).size(); }
-    public void printAll() { /* ... no change ... */ for (LogEntry le : records) System.out.println(le); }
-    public ArrayList<String> uniqueIPVisitsOnDay(String someday) { /* ... no change ... */
-        HashSet<String> uniqueIPsOnDay = new HashSet<>();
-        for (LogEntry le : records) { Date d = le.getAccessTime(); if (d != null && d.toString().contains(someday)) uniqueIPsOnDay.add(le.getIpAddress()); }
-        return new ArrayList<>(uniqueIPsOnDay);
-    }
 }
