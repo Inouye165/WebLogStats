@@ -1,109 +1,92 @@
-import javax.swing.JFileChooser;
-import java.io.File;
-// Import needed for file extension filtering
+import javax.swing.*;
 import javax.swing.filechooser.FileNameExtensionFilter;
-// Import needed for the graphical pop-up window
-import javax.swing.JOptionPane;
+import java.io.File;
+// No other GUI imports needed here anymore
 
-/**
- * Tester class for LogAnalyzer focusing on counting unique IPs.
- * Uses JFileChooser to select the log file dynamically,
- * starting in a default directory and filtering for .log files.
- * Displays the final unique IP count in a graphical window using HTML.
- */
 public class LogTester {
 
     public static void main(String[] args) {
-        testLogAnalyzer();
+        // Use SwingUtilities.invokeLater to ensure GUI creation happens on the Event Dispatch Thread
+        SwingUtilities.invokeLater(() -> {
+            runAnalysisSetup();
+        });
     }
 
-    public static void testLogAnalyzer() {
-        // Create a LogAnalyzer object
+    public static void runAnalysisSetup() {
         LogAnalyzer analyzer = new LogAnalyzer();
 
-        // --- Use JFileChooser to select the log file ---
+        // --- 1. Select Log File ---
+        File selectedFile = selectLogFile();
+        if (selectedFile == null) {
+            // Show message using JOptionPane as it's before main window exists
+            JOptionPane.showMessageDialog(null, "No file selected. Exiting.", "Cancelled", JOptionPane.WARNING_MESSAGE);
+            return; // Exit if no file was chosen
+        }
+        String filename = selectedFile.getAbsolutePath();
+        String shortFilename = selectedFile.getName();
+        System.out.println("Selected file: " + filename);
+
+        // --- 2. Read and Analyze File (populates analyzer) ---
+        System.out.println("Reading and analyzing log file, please wait...");
+        analyzer.readFile(filename); // Reads the file and finds min/max dates
+        System.out.println("Finished reading and analyzing file.");
+
+        // --- 3. Create and Show the Main Analysis Window ---
+        // Pass the analyzer instance (with loaded data) and filename to the window
+        LogAnalysisWindow analysisWindow = new LogAnalysisWindow(analyzer, shortFilename);
+        analysisWindow.setVisible(true); // Show the main window
+
+        // --- Console outputs can still happen here if needed ---
+        // These run *after* the file is read but *before* user interacts with date picker
+
+        // Example: Print Status Code > Num (Console Output)
+        analyzer.printAllHigherThanNum(400);
+
+        // Example: Count Unique IPs In Range (Console Output)
+        int count200s = analyzer.countUniqueIPsInRange(200, 299);
+        System.out.println("\nUnique IPs with status 200-299 (Console): " + count200s);
+        int count300s = analyzer.countUniqueIPsInRange(300, 399);
+        System.out.println("Unique IPs with status 300-399 (Console): " + count300s);
+
+        System.out.println("\n--- Analysis window launched. Select date in window to see daily results. ---");
+    }
+
+    /** Helper method to select the log file using JFileChooser */
+    private static File selectLogFile() {
         JFileChooser fileChooser = new JFileChooser();
 
-        // --- 1. Set the Default Directory ---
-        // Define the path to your usual log file folder
-        // Use forward slashes for better cross-platform compatibility in Java
-        // *** ADJUST THIS PATH if necessary for your system ***
-        String defaultPath = "C:/Users/inouy/duke_coursera/WebLogStats/WebLogStats/lib"; // Example path
+        // --- Set Default Directory ---
+        // *** VERIFY THIS PATH IS CORRECT FOR YOUR SYSTEM ***
+        String defaultPath = "C:/Users/inouy/duke_coursera/WebLogStats/WebLogStats/lib"; // Your specific lib path
+
         File defaultDirectory = new File(defaultPath);
 
-        // Set the file chooser to start in that directory if it exists
         if (defaultDirectory.exists() && defaultDirectory.isDirectory()) {
             fileChooser.setCurrentDirectory(defaultDirectory);
             System.out.println("File chooser starting in: " + defaultPath);
         } else {
-            System.out.println("Default directory (" + defaultPath + ") not found. Starting in user home directory.");
+            // Fallback if the specific directory isn't found
+            System.out.println("Specified default directory (" + defaultPath + ") not found or is not a directory.");
+            System.out.println("Starting in user home directory instead.");
             fileChooser.setCurrentDirectory(new File(System.getProperty("user.home")));
         }
+        // --- End Set Default Directory ---
 
-        // --- 2. Set the File Filter ---
-        FileNameExtensionFilter logFilter = new FileNameExtensionFilter(
-                "Log Files (*.log)", // Description shown in the filter dropdown
-                "log"                // The file extension(s) to allow
-        );
+
+        // --- Set File Filter ---
+        FileNameExtensionFilter logFilter = new FileNameExtensionFilter("Log Files (*.log)", "log");
         fileChooser.setFileFilter(logFilter);
-        // Optional: Control if "All Files" filter is shown
-        // fileChooser.setAcceptAllFileFilterUsed(false); // Hide "All Files"
+        fileChooser.setAcceptAllFileFilterUsed(true); // Allow "All Files"
 
-        System.out.println("Opening file chooser dialog (filtered for .log files)...");
-        int result = fileChooser.showOpenDialog(null); // Show the dialog
+        System.out.println("Opening file chooser dialog...");
+        int result = fileChooser.showOpenDialog(null);
 
-        // --- Process the selected file (if one was chosen) ---
         if (result == JFileChooser.APPROVE_OPTION) {
-            // User selected a file
-            File selectedFile = fileChooser.getSelectedFile();
-            String filename = selectedFile.getAbsolutePath(); // Get the full path
-            String shortFilename = selectedFile.getName(); // Get just the file name for display
-
-            System.out.println("Selected file: " + filename);
-
-            // Read the selected log file
-            // Consider adding a visual cue for long processing times if needed
-            System.out.println("Reading and analyzing log file, please wait...");
-            analyzer.readFile(filename);
-            System.out.println("Finished reading and analyzing file.");
-
-            // --- Test countUniqueIPs ---
-            int uniqueIPCount = analyzer.countUniqueIPs();
-            System.out.println("Analysis complete. Displaying results..."); // Console feedback
-
-            // --- Display result in a graphical window using HTML ---
-            String htmlMessage = String.format(
-                "<html>" +
-                "<body style='font-family: sans-serif; padding: 10px;'>" +
-                "<h2 style='color: #00579B;'>Web Log Analysis Results</h2>" + // Blue heading
-                "<hr>" +
-                "<p>Analysis completed for file: <br><code style='font-size:0.9em; color:#555;'>%s</code></p>" + // Show filename
-                "<p>Number of unique IP addresses found:</p>" +
-                // Green, bold, larger font for the result
-                "<p style='font-size: 1.8em; color: #008000; font-weight: bold; text-align: center;'>%d</p>" +
-                "</body></html>",
-                shortFilename, // Insert the short filename
-                uniqueIPCount  // Insert the count
-            );
-
-            JOptionPane.showMessageDialog(
-                null,                          // Parent component (null centers on screen)
-                htmlMessage,                   // The HTML formatted message
-                "Unique IP Count",             // Title of the window
-                JOptionPane.INFORMATION_MESSAGE // Icon type
-            );
-
-            // Add other analysis calls here if needed...
-            // You could potentially add more results to the htmlMessage string
-
-        } else if (result == JFileChooser.CANCEL_OPTION) {
-            System.out.println("File selection cancelled by user. Exiting.");
-            // Optionally show a cancellation message window
-            JOptionPane.showMessageDialog(null, "File selection cancelled.", "Cancelled", JOptionPane.WARNING_MESSAGE);
+            return fileChooser.getSelectedFile();
         } else {
-            System.err.println("JFileChooser error or dialog closed unexpectedly. Exiting.");
-            // Optionally show an error message window
-            JOptionPane.showMessageDialog(null, "An error occurred with the file chooser.", "Error", JOptionPane.ERROR_MESSAGE);
+            System.out.println("File selection cancelled or failed.");
+            return null; // Indicate cancellation or error
         }
     }
-}
+
+} // End of LogTester class
